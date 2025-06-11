@@ -1,0 +1,7 @@
+app:
+  environment: dev
+
+logging:
+  level:
+    com.intflow.apiintflowservice: DEBUG
+    org.springframework: INFO
