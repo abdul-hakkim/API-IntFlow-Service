@@ -4,11 +4,9 @@ import com.intflow.apiintflowservice.model.VersionInfo;
 import com.intflow.apiintflowservice.service.VersionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,19 +22,11 @@ class VersionControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Mock
+    @MockitoBean
     private VersionService versionService;
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @TestConfiguration
-    static class MockConfig {
-        @Bean
-        VersionService versionService(@Mock VersionService mock) {
-            return mock;
-        }
-    }
 
     @Test
     void getVersion_ShouldReturnVersionInfo() throws Exception {
