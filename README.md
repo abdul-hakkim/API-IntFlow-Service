@@ -24,7 +24,7 @@ A simple Spring Boot REST API that returns version information dynamically based
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/version-api.git
+   git clone https://github.com/your-org/api-intflow-service.git
    cd version-api
    ```
 
@@ -48,7 +48,7 @@ A simple Spring Boot REST API that returns version information dynamically based
 2. **Configure Run Configuration**
     - Run → Edit Configurations
     - Add new "Spring Boot" configuration
-    - Main class: `com.example.versionapi.VersionApiApplication`
+    - Main class: `com.intlfow.apiintflowservice.ApiIntFlowServiceApplication`
     - Program arguments: `--spring.profiles.active=dev`
 
 3. **Enable Annotation Processing**
