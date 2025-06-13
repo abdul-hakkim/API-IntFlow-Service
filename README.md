@@ -91,7 +91,7 @@ A simple Spring Boot REST API that returns version information dynamically based
 
 The application automatically deploys to OpenShift when:
 - Code is pushed to `main` branch
-- A new tag starting with `v` is created (e.g., `v1.0.0-prod`)
+- A new tag starting with `v` is created (e.g., `v1.0.0-test`)
 
 ### Version Tag Format
 
