@@ -15,9 +15,9 @@ function fn() {
         config.baseUrl = 'http://localhost:8080';
     } else if (env == 'test') {
         config.baseUrl = 'http://localhost:8080';
-    } else if (env == 'prod') {
-        config.baseUrl = 'https://apiintflowservice-prod.apps.your-openshift-cluster.com';
-    }
+    } //else if (env == 'prod') {
+       // config.baseUrl = 'https://apiintflowservice-prod.apps.your-openshift-cluster.com';
+    //}
 
     karate.log('Using baseUrl:', config.baseUrl);
     return config;
