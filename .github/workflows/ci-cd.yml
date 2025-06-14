@@ -38,6 +38,9 @@ jobs:
       - name: Run unit tests
         run: mvn clean test
 
+      - name: Run integration tests
+        run: mvn verify -Dspring.profiles.active=test
+
       - name: Generate test report
         uses: dorny/test-reporter@v1
         if: success() || failure()

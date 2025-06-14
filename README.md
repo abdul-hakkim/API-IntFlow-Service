@@ -98,7 +98,6 @@ The application automatically deploys to OpenShift when:
 Use semantic versioning with environment suffix:
 - `v1.0.0-dev` - Development environment
 - `v1.0.0-test` - Test environment
-- `v1.0.0-prod` - Production environment
 
 ## Contributing
 
