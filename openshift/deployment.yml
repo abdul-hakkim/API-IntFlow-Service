@@ -4,18 +4,18 @@ kind: Deployment
 metadata:
   name: intflow-service
   labels:
-    app: inflow-service
+    app: intflow-service
     version: "${APP_VERSION}"
     environment: "${APP_ENVIRONMENT}"
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: intflow-service
   template:
     metadata:
       labels:
-        app: inflow-service
+        app: intflow-service
         version: "${APP_VERSION}"
         environment: "${APP_ENVIRONMENT}"
     spec:
