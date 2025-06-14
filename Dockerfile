@@ -1,5 +1,5 @@
 # Dockerfile
-FROM openjdk:21-jdk-slim as builder
+FROM openjdk:21-slim as builder
 
 WORKDIR /app
 COPY pom.xml .
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y maven
 # Build the application
 RUN mvn clean package -DskipTests
 
-FROM openjdk:21-jre-slim
+FROM openjdk:21-slim
 
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1001 appuser
