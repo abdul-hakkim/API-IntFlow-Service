@@ -174,7 +174,7 @@ jobs:
       - name: Set up OpenShift CLI
         uses: redhat-actions/openshift-tools-installer@v1
         with:
-          oc: "4.18.2"
+          oc: "4.10.0"
       - name: Log in to OpenShift
         run: |
           oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }}
