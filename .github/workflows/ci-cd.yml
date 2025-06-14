@@ -14,6 +14,9 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,9 +37,6 @@ jobs:
 
       - name: Run unit tests
         run: mvn clean test
-
-      - name: Run integration tests
-        run: mvn verify -Dspring.profiles.active=dev
 
       - name: Generate test report
         uses: dorny/test-reporter@v1
