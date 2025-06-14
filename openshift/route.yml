@@ -1,11 +1,11 @@
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: inflow-service
+  name: intflow-service
   labels:
-    app: inflow-service
+    app: intflow-service
 spec:
-  host: inflow-service-${APP_ENVIRONMENT}.apps.crc.testing.com
+  host: intflow-service-${APP_ENVIRONMENT}.apps.crc.testing.com
   to:
     kind: Service
     name: intflow-service
