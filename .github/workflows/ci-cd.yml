@@ -120,7 +120,7 @@ jobs:
           if [[ ${{ github.ref }} == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
             echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "environment=$(echo $VERSION | grep -oE '(dev|test|prod) || echo 'prod')" >> $GITHUB_OUTPUT
+            echo "environment=$(echo $VERSION | grep -oE '(dev|test|prod)' || echo 'prod')" >> $GITHUB_OUTPUT
           else
             echo "version=latest" >> $GITHUB_OUTPUT
             echo "environment=dev" >> $GITHUB_OUTPUT
