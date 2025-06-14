@@ -161,7 +161,7 @@ jobs:
       - name: Set up OpenShift CLI
         uses: redhat-actions/openshift-tools-installer@v1
         with:
-          oc: "4.12"
+          oc: "4.18.2"
 
       - name: Log in to OpenShift
         run: |
@@ -185,14 +185,14 @@ jobs:
           APP_ENVIRONMENT: ${{ steps.version.outputs.environment }}
 
       - name: Run post-deployment tests
-        run:
+        run: |
           # Get the route URL
           ROUTE_URL=$(oc get route version-api -o jsonpath='{.spec.host}')
           echo "Testing deployment at: https://$ROUTE_URL"
-          
+            
           # Wait for application to be ready
           sleep 30
-          
+            
           # Run Karate tests against deployed application
-          mvn test -Dtest=karate.ApiIntFlowServiceTest -Dkarate.env=test -Dkarate.options="--tags ~@ignore" \
+          mvn test -Dtest=karate.VersionApiTest -Dkarate.env=prod -Dkarate.options="--tags ~@ignore" \
             -Dkarate.baseUrl=https://$ROUTE_URL
