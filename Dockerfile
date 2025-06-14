@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y maven
 # Build the application
 RUN mvn clean package -DskipTests
 
-FROM openjdk:17-jre-slim
+FROM openjdk:21-jre-slim
 
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1001 appuser
