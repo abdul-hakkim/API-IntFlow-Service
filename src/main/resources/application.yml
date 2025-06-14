@@ -1,6 +1,6 @@
 spring:
   application:
-    name: version-api
+    name: API-IntFlow-Service
   profiles:
     active: ${APP_PROFILE:dev}
 

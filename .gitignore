@@ -1,6 +1,6 @@
-README.md
+# .gitignore
 target/
-.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
@@ -32,7 +32,10 @@ build/
 ### VS Code ###
 .vscode/
 
-# Log files
-*.log
+### Logs ###
 logs/
-log/
+*.log
+
+### OS ###
+.DS_Store
+Thumbs.db
