@@ -12,7 +12,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  unit-tests:
+  test:
     runs-on: ubuntu-latest
     permissions:
       checks: write
@@ -185,7 +185,7 @@ jobs:
           APP_ENVIRONMENT: ${{ steps.version.outputs.environment }}
 
       - name: Run post-deployment tests
-        run: |
+        run:
           # Get the route URL
           ROUTE_URL=$(oc get route version-api -o jsonpath='{.spec.host}')
           echo "Testing deployment at: https://$ROUTE_URL"
