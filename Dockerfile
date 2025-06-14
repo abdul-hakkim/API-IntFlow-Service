@@ -4,6 +4,7 @@ FROM openjdk:21-slim as builder
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
+COPY .git .git
 
 # Install Maven
 RUN apt-get update && apt-get install -y maven
