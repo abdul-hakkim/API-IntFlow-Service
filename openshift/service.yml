@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: intflow-service
   labels:
-    app:  inflow-service
+    app:  intflow-service
 spec:
   ports:
     - name: http
@@ -11,5 +11,5 @@ spec:
       protocol: TCP
       targetPort: 8080
   selector:
-    app: inflow-service
+    app: intflow-service
   type: ClusterIP
