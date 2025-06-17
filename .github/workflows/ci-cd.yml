@@ -193,7 +193,7 @@ jobs:
           envsubst < openshift/deployment.yml | oc apply -f -
           envsubst < openshift/service.yml | oc apply -f -
           envsubst < openshift/route.yml | oc apply -f -
-          oc rollout status deployment/version-api --timeout=300s
+          oc rollout status deployment/intflow-service --timeout=300s
         env:
           IMAGE_TAG: ${{ needs.build-and-push-image.outputs.image_tag }}
           APP_VERSION: ${{ needs.build-and-push-image.outputs.app_version }}
