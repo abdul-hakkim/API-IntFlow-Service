@@ -191,8 +191,8 @@ jobs:
         run: |
           oc project ${{ secrets.OPENSHIFT_PROJECT }} || oc new-project ${{ secrets.OPENSHIFT_PROJECT }}
           envsubst < openshift/deployment.yml | oc apply -f -
-          oc apply -f openshift/service.yml
-          oc apply -f openshift/route.yml
+          envsubst < openshift/service.yml | oc apply -f -
+          envsubst < openshift/route.yml | oc apply -f -
           oc rollout status deployment/version-api --timeout=300s
         env:
           IMAGE_TAG: ${{ needs.build-and-push-image.outputs.image_tag }}
