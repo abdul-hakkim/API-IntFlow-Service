@@ -200,8 +200,8 @@ jobs:
           APP_ENVIRONMENT: ${{ needs.build-and-push-image.outputs.app_environment }}
       - name: Run post-deployment tests
         run: |
-          ROUTE_URL=$(oc get route version-api -o jsonpath='{.spec.host}')
+          ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}')
           echo "Testing deployment at: https://$ROUTE_URL"
           sleep 30
-          mvn test -Dtest=karate.VersionApiTest -Dkarate.env=prod -Dkarate.options="--tags ~@ignore" \
+          mvn test -Dtest=karate.ApiIntFlowServiceTest -Dkarate.env=test -Dkarate.options="--tags ~@ignore" \
             -Dkarate.baseUrl=https://$ROUTE_URL
