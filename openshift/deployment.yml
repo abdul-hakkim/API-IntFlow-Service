@@ -19,6 +19,8 @@ spec:
         version: "${APP_VERSION}"
         environment: "${APP_ENVIRONMENT}"
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: intflow-service
           image: ${IMAGE_TAG}
