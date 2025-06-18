@@ -1,9 +1,9 @@
 function fn() {
 
-    karate.log('karate.env system property was:', env);
-
     var env = karate.env || 'local';
     var config = { env: env };
+
+    karate.log('karate.env system property was:', env);
 
     if (env === 'test') {
         config.baseUrl = 'http://intflow-service-latest-dev.apps.crc.testing.com';
