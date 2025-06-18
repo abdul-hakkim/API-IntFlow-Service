@@ -1,4 +1,4 @@
-package com.intflow.apiintflowservice;
+package karate;
 
 import com.intuit.karate.junit5.Karate;
 
