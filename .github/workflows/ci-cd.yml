@@ -181,6 +181,11 @@ jobs:
         uses: redhat-actions/openshift-tools-installer@v1
         with:
           oc: "4.10.0"
+      - name: Install Maven
+        run: |
+          curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.5/binaries/apache-maven-3.9.5-bin.tar.gz | tar xz
+          sudo mv apache-maven-3.9.5 /opt/maven
+          echo "/opt/maven/bin" >> $GITHUB_PATH
       - name: Log in to OpenShift
         run: |
           oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }} --insecure-skip-tls-verify=true
