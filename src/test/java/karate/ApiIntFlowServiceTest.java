@@ -6,6 +6,6 @@ class ApiIntFlowServiceTest {
 
     @Karate.Test
     Karate testApiIntFlowService() {
-        return Karate.run("apiintflowservice").relativeTo(getClass());
+        return Karate.run("classpath:karate");
     }
 }
