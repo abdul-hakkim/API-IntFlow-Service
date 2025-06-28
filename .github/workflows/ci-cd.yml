@@ -354,6 +354,9 @@ jobs:
 
   Post-Deployment-Tests:
     runs-on: self-hosted  # Keep self-hosted for OpenShift access
+    permissions:
+      checks: write
+      contents: read
     needs: [Version-Analysis, Manual-Version-Analysis, Deploy-OpenShift]
     if: always() && needs.Deploy-OpenShift.result == 'success' # Fixed condition
     steps:
