@@ -351,6 +351,32 @@ jobs:
             oc exec deployment/intflow-service -- curl -f http://localhost:8080/health
           fi
 
+      - name: Run post-deployment tests
+        id: post_tests
+        continue-on-error: true
+        run: |
+          ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}')
+          echo "Testing deployment at: https://$ROUTE_URL"
+          sleep 30
+          mvn test -Dtest=karate.ApiIntFlowServiceTest -Dkarate.env=dev -Dkarate.options="--tags ~@ignore" \
+            -Dkarate.baseUrl=https://$ROUTE_URL
+
+      - name: Rollback if post-deployment tests failed
+        if: steps.post_tests.outcome == 'failure'
+        run: |
+          echo "Post-deployment tests failed, rolling back to previous version..."
+          oc rollout undo deployment/intflow-service
+          oc rollout status deployment/intflow-service --timeout=300s
+
+      - name: Upload Karate test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karate-test-reports
+          path: |
+            target/karate-reports/
+            target/surefire-reports/
+
       - name: 🎉 Deployment Summary
         run: |
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
