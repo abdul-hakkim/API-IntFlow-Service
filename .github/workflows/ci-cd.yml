@@ -260,9 +260,9 @@ jobs:
             APP_VERSION=${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}
             APP_ENVIRONMENT=${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
 
-  # Deploy to OpenShift
+  # Deploy to OpenShift - FIXED VERSION
   Deploy-OpenShift:
-    runs-on: self-hosted
+    runs-on: self-hosted  # Keep self-hosted for OpenShift cluster access
     needs: [Version-Analysis, Manual-Version-Analysis, Build-and-Push]
     if: always() && needs.Build-and-Push.result == 'success'
     environment: ${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
@@ -282,7 +282,7 @@ jobs:
             echo "oc_installed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up OpenShift CLI
+      - name: Set up OpenShift CLI (if needed)
         if: steps.check-oc.outputs.oc_installed == 'false'
         uses: redhat-actions/openshift-tools-installer@v1
         with:
@@ -303,8 +303,8 @@ jobs:
           ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
           IS_RELEASE="${{ needs.Manual-Version-Analysis.outputs.is_release || needs.Version-Analysis.outputs.is_release }}"
           
-          # Create or switch to project
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
+          # Create or switch to project with environment suffix
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
           oc project $PROJECT_NAME || oc new-project $PROJECT_NAME
           
           echo "🚀 Deploying $VERSION to $ENVIRONMENT environment"
@@ -330,7 +330,7 @@ jobs:
         run: |
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
           ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
           oc project $PROJECT_NAME
           
           echo "🔍 Checking application health..."
@@ -350,22 +350,134 @@ jobs:
             echo "⚠️ No external route found"
             oc exec deployment/intflow-service -- curl -f http://localhost:8080/health
           fi
+          echo "✅ Health check completed"
+
+  Post-Deployment-Tests:
+    runs-on: self-hosted  # Keep self-hosted for OpenShift access
+    needs: [Version-Analysis, Manual-Version-Analysis, Deploy-OpenShift]
+    if: always() && needs.Deploy-OpenShift.result == 'success' # Fixed condition
+    steps:
+      - name: 🔍 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.Manual-Version-Analysis.outputs.version || github.sha }}
+
+      - name: ☕ Set up JDK 21 (if needed)
+        run: |
+          # Check if Java 21 is available, if not, set it up
+          if ! java -version 2>&1 | grep -q "21\."; then
+            echo "Setting up Java 21..."
+            # Add your Java setup commands here if needed for self-hosted runner
+            # Or ensure Java 21 is pre-installed on your self-hosted runners
+          fi
+          java -version
+
+      - name: 📦 Cache Maven Dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Check for oc CLI
+        id: check-oc
+        run: |
+          if command -v oc >/dev/null 2>&1; then
+            echo "oc_installed=true" >> $GITHUB_OUTPUT
+            echo "Current oc version: $(oc version --client)"
+          else
+            echo "oc_installed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up OpenShift CLI (if needed)
+        if: steps.check-oc.outputs.oc_installed == 'false'
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: "4.10.0"
+
+      - name: 🔐 Login to OpenShift
+        run: |
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }} --insecure-skip-tls-verify=true
+
+      - name: Run Karate Tests
+        run: |
+          ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
+          oc project $PROJECT_NAME
+          
+          ROUTE_HOST=$(oc get route intflow-service -o jsonpath='{.spec.host}')
+          echo "🧪 Running tests against: https://$ROUTE_HOST"
+          
+          mvn test -Dtest=karate.ApiIntFlowServiceTest -Dkarate.env=dev -Dkarate.options="--tags ~@ignore" \
+            -Dkarate.baseUrl=https://$ROUTE_HOST
+
+      - name: Upload Karate Reports
+        uses: actions/upload-artifact@v4
+        if: always()  # Always upload reports, even if tests fail
+        with:
+          name: karate-test-reports-${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
+          path: |
+            target/karate-reports/
+            target/surefire-reports/
+
+      - name: Publish Karate Test Summary
+        uses: dorny/test-reporter@v1
+        if: always()  # Always publish results, even if tests fail
+        with:
+          name: Karate Post-Deployment Test Results
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+
+  # NEW: Deployment Summary Job
+  Deployment-Summary:
+    runs-on: self-hosted  # Keep self-hosted for consistency and OpenShift access
+    needs: [Version-Analysis, Manual-Version-Analysis, Build-and-Push, Deploy-OpenShift, Post-Deployment-Tests]
+    if: always() && needs.Deploy-OpenShift.result == 'success' # Run even if tests fail
+    steps:
+      - name: Check for oc CLI
+        id: check-oc
+        run: |
+          if command -v oc >/dev/null 2>&1; then
+            echo "oc_installed=true" >> $GITHUB_OUTPUT
+            echo "Current oc version: $(oc version --client)"
+          else
+            echo "oc_installed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up OpenShift CLI (if needed)
+        if: steps.check-oc.outputs.oc_installed == 'false'
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: "4.10.0"
+
+      - name: 🔐 Login to OpenShift
+        run: |
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }} --insecure-skip-tls-verify=true
 
       - name: 🎉 Deployment Summary
         run: |
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
           ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
           IS_RELEASE="${{ needs.Manual-Version-Analysis.outputs.is_release || needs.Version-Analysis.outputs.is_release }}"
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-$ENVIRONMENT"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
+          TEST_STATUS="${{ needs.Post-Deployment-Tests.result }}"
+          
+          oc project $PROJECT_NAME
           
           echo "🎉 Deployment Complete!"
           echo "✅ Version: $VERSION"
           echo "🌍 Environment: $ENVIRONMENT"
           echo "📦 Image: ${{ needs.Build-and-Push.outputs.image_tag }}"
           echo "🏷️ Release: $IS_RELEASE"
+          echo "🧪 Tests: $TEST_STATUS"
           
-          ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}' -n $PROJECT_NAME 2>/dev/null || echo "Internal only")
+          ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}' 2>/dev/null || echo "Internal only")
           echo "🔗 URL: https://$ROUTE_URL"
+          
+          # Show pod status
+          echo ""
+          echo "📊 Current Pod Status:"
+          oc get pods -l app=intflow-service --show-labels
           
           if [[ "$IS_RELEASE" == "true" && "$ENVIRONMENT" == "dev" ]]; then
             echo ""
@@ -373,33 +485,10 @@ jobs:
             echo "   1. Validate deployment in dev environment"
             echo "   2. Manual promote to test: Run workflow with tag=$VERSION, env=test"
             echo "   3. Manual promote to prod: Run workflow with tag=$VERSION, env=prod"
+          elif [[ "${{ github.ref }}" =~ ^refs/heads/feature/ ]]; then
+            echo ""
+            echo "🔧 Feature Branch Deployment:"
+            echo "   - This is a preview deployment for testing"
+            echo "   - Merge to main when ready for release"
+            echo "   - Tests status: $TEST_STATUS"
           fi
-
-  Post-Deployment-Tests:
-    runs-on: self-hosted
-    needs: Deploy-OpenShift
-    if: needs.Deploy-OpenShift.result == 'success'
-    steps:
-      - name: 🔍 Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Run Karate Tests
-        run: |
-          ROUTE_HOST=$(oc get route intflow-service -o jsonpath='{.spec.host}')
-          mvn test -Dtest=karate.ApiIntFlowServiceTest -Dkarate.env=dev -Dkarate.options="--tags ~@ignore" \
-            -Dkarate.baseUrl=https://$ROUTE_HOST
-
-      - name: Upload Karate Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: karate-test-reports
-          path: |
-            target/karate-reports/
-            target/surefire-reports/
-
-      - name: Publish Karate Test Summary
-        uses: dorny/test-reporter@v1
-        with:
-          name: Karate Post-Deployment Test Results
-          path: target/surefire-reports/*.xml
-          reporter: java-junit
