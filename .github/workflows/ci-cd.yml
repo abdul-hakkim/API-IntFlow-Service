@@ -272,14 +272,26 @@ jobs:
         with:
           ref: ${{ needs.Manual-Version-Analysis.outputs.version || github.sha }}
 
-      - name: 🔧 Setup OpenShift CLI
+      - name: Check for oc CLI
+        id: check-oc
         run: |
-          if ! command -v oc >/dev/null 2>&1; then
-            curl -LO https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz
-            tar -xzf openshift-client-linux.tar.gz
-            sudo mv oc /usr/local/bin/
+          if command -v oc >/dev/null 2>&1; then
+            echo "oc_installed=true" >> $GITHUB_OUTPUT
+            echo "Current oc version: $(oc version --client)"
+          else
+            echo "oc_installed=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Set up OpenShift CLI
+        if: steps.check-oc.outputs.oc_installed == 'false'
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: "4.10.0"
+
+      - name: Verify oc installation
+        run: |
           oc version --client
+          echo "oc CLI successfully installed and working"
 
       - name: 🔐 Login to OpenShift
         run: |
