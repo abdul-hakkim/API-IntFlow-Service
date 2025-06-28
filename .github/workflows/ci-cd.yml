@@ -326,21 +326,6 @@ jobs:
           APP_VERSION: ${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}
           APP_ENVIRONMENT: ${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
 
-      - name: Get OpenShift service IP and update hosts
-        run: |
-          ROUTE_HOST=$(oc get route intflow-service -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
-          SERVICE_IP=$(oc get svc intflow-service -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "")
-          EXTERNAL_IP=$(oc get svc intflow-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
-          TARGET_IP=${EXTERNAL_IP:-${SERVICE_IP}}
-          if [ ! -z "$TARGET_IP" ] && [ ! -z "$ROUTE_HOST" ]; then
-            sudo sed -i "/.*${ROUTE_HOST//./\\.}/d" /etc/hosts
-            echo "$TARGET_IP $ROUTE_HOST" | sudo tee -a /etc/hosts
-            echo "Updated hosts file with IP: $TARGET_IP for $ROUTE_HOST"
-          else
-            echo "Could not determine target IP or route host"
-            exit 1
-          fi
-
       - name: 🧪 Health Check
         run: |
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
@@ -360,7 +345,7 @@ jobs:
           ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
           if [[ -n "$ROUTE_URL" ]]; then
             echo "🌐 Testing at: https://$ROUTE_URL"
-            curl -f "https://$ROUTE_URL/api/v1/health" || echo "⚠️ Health check failed"
+            curl -f "http://$ROUTE_URL:8080/api/v1/health" || echo "⚠️ Health check failed"
           else
             echo "⚠️ No external route found"
             oc exec deployment/intflow-service -- curl -f http://localhost:8080/health
@@ -397,12 +382,6 @@ jobs:
     steps:
       - name: 🔍 Checkout Code
         uses: actions/checkout@v4
-
-      - name: ☕ Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
 
       - name: Run Karate Tests
         run: |
