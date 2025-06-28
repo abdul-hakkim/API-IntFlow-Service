@@ -4,10 +4,9 @@ metadata:
   name: intflow-service
   labels:
     app: intflow-service
-    version: "${APP_VERSION}"
-    environment: "${APP_ENVIRONMENT}"
+    environment: ${APP_ENVIRONMENT}
 spec:
-  host: intflow-service-${APP_VERSION}-${APP_ENVIRONMENT}.apps.crc.testing.com
+  host: intflow-service-${APP_ENVIRONMENT}.apps.crc.testing.com
   to:
     kind: Service
     name: intflow-service
