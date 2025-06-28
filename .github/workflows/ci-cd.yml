@@ -326,6 +326,21 @@ jobs:
           APP_VERSION: ${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}
           APP_ENVIRONMENT: ${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
 
+      - name: Get OpenShift service IP and update hosts
+        run: |
+          ROUTE_HOST=$(oc get route intflow-service -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+          SERVICE_IP=$(oc get svc intflow-service -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "")
+          EXTERNAL_IP=$(oc get svc intflow-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+          TARGET_IP=${EXTERNAL_IP:-${SERVICE_IP}}
+          if [ ! -z "$TARGET_IP" ] && [ ! -z "$ROUTE_HOST" ]; then
+            sudo sed -i "/.*${ROUTE_HOST//./\\.}/d" /etc/hosts
+            echo "$TARGET_IP $ROUTE_HOST" | sudo tee -a /etc/hosts
+            echo "Updated hosts file with IP: $TARGET_IP for $ROUTE_HOST"
+          else
+            echo "Could not determine target IP or route host"
+            exit 1
+          fi
+
       - name: 🧪 Health Check
         run: |
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
@@ -345,37 +360,11 @@ jobs:
           ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
           if [[ -n "$ROUTE_URL" ]]; then
             echo "🌐 Testing at: https://$ROUTE_URL"
-            curl -f "https://$ROUTE_URL/health" || echo "⚠️ Health check failed"
+            curl -f "https://$ROUTE_URL/api/v1/health" || echo "⚠️ Health check failed"
           else
             echo "⚠️ No external route found"
             oc exec deployment/intflow-service -- curl -f http://localhost:8080/health
           fi
-
-      - name: Run post-deployment tests
-        id: post_tests
-        continue-on-error: true
-        run: |
-          ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}')
-          echo "Testing deployment at: https://$ROUTE_URL"
-          sleep 30
-          mvn test -Dtest=karate.ApiIntFlowServiceTest -Dkarate.env=dev -Dkarate.options="--tags ~@ignore" \
-            -Dkarate.baseUrl=https://$ROUTE_URL
-
-      - name: Rollback if post-deployment tests failed
-        if: steps.post_tests.outcome == 'failure'
-        run: |
-          echo "Post-deployment tests failed, rolling back to previous version..."
-          oc rollout undo deployment/intflow-service
-          oc rollout status deployment/intflow-service --timeout=300s
-
-      - name: Upload Karate test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: karate-test-reports
-          path: |
-            target/karate-reports/
-            target/surefire-reports/
 
       - name: 🎉 Deployment Summary
         run: |
@@ -400,3 +389,38 @@ jobs:
             echo "   2. Manual promote to test: Run workflow with tag=$VERSION, env=test"
             echo "   3. Manual promote to prod: Run workflow with tag=$VERSION, env=prod"
           fi
+
+  Post-Deployment-Tests:
+    runs-on: self-hosted
+    needs: Deploy-OpenShift
+    if: needs.Deploy-OpenShift.result == 'success'
+    steps:
+      - name: 🔍 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Run Karate Tests
+        run: |
+          ROUTE_HOST=$(oc get route intflow-service -o jsonpath='{.spec.host}')
+          mvn test -Dtest=karate.ApiIntFlowServiceTest -Dkarate.env=dev -Dkarate.options="--tags ~@ignore" \
+            -Dkarate.baseUrl=https://$ROUTE_HOST
+
+      - name: Upload Karate Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: karate-test-reports
+          path: |
+            target/karate-reports/
+            target/surefire-reports/
+
+      - name: Publish Karate Test Summary
+        uses: dorny/test-reporter@v1
+        with:
+          name: Karate Post-Deployment Test Results
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
