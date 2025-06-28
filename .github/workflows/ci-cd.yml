@@ -304,7 +304,7 @@ jobs:
           IS_RELEASE="${{ needs.Manual-Version-Analysis.outputs.is_release || needs.Version-Analysis.outputs.is_release }}"
           
           # Create or switch to project with environment suffix
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
           oc project $PROJECT_NAME || oc new-project $PROJECT_NAME
           
           echo "🚀 Deploying $VERSION to $ENVIRONMENT environment"
@@ -330,7 +330,7 @@ jobs:
         run: |
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
           ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
           oc project $PROJECT_NAME
           
           echo "🔍 Checking application health..."
@@ -402,7 +402,7 @@ jobs:
       - name: Run Karate Tests
         run: |
           ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
           oc project $PROJECT_NAME
           
           ROUTE_HOST=$(oc get route intflow-service -o jsonpath='{.spec.host}')
@@ -459,7 +459,7 @@ jobs:
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
           ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
           IS_RELEASE="${{ needs.Manual-Version-Analysis.outputs.is_release || needs.Version-Analysis.outputs.is_release }}"
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${ENVIRONMENT}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
           TEST_STATUS="${{ needs.Post-Deployment-Tests.result }}"
           
           oc project $PROJECT_NAME
