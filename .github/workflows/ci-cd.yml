@@ -330,7 +330,7 @@ jobs:
         run: |
           VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
           ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-$ENVIRONMENT"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
           oc project $PROJECT_NAME
           
           echo "🔍 Checking application health..."
