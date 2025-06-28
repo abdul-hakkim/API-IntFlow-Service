@@ -8,14 +8,18 @@ on:
     branches: [ main ]
   workflow_dispatch:
     inputs:
-      deployment_target:
-        description: 'Deployment target'
+      git_tag:
+        description: 'Git tag to deploy (e.g., v1.0.0)'
         required: true
-        default: 'dev'
+        type: string
+      target_environment:
+        description: 'Target environment'
+        required: true
         type: choice
         options:
           - dev
           - test
+          - prod
 
 env:
   REGISTRY: ghcr.io
@@ -68,66 +72,141 @@ jobs:
       - name: 🏗️ Build Validation
         run: mvn clean package -DskipTests
 
-  # Version Analysis
+  # Version Detection & Release Management
   Version-Analysis:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/'))
+    permissions:
+      contents: write  # Needed for creating tags
     outputs:
       version: ${{ steps.version.outputs.version }}
       environment: ${{ steps.version.outputs.environment }}
       should_deploy: ${{ steps.version.outputs.should_deploy }}
+      is_release: ${{ steps.version.outputs.is_release }}
+      git_tag: ${{ steps.version.outputs.git_tag }}
     steps:
       - name: 🔍 Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📊 Generate Version
+      - name: 📊 Detect Version Changes & Generate Tags
         id: version
         run: |
-          # Get the latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $LATEST_TAG"
-          
-          # Extract version number
-          CURRENT_VERSION=${LATEST_TAG#v}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          echo "Analyzing version changes..."
           
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            # Main branch - patch version bump
-            NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))"
-            ENVIRONMENT="prod"
-            SHOULD_DEPLOY="true"
+            # Main branch - check for version changes in pom.xml
+            CURRENT_VERSION=$(grep -oP '<version>\K[^<]+' pom.xml | head -1)
+            echo "Current pom.xml version: $CURRENT_VERSION"
+          
+            # Get previous commit's version
+            git checkout HEAD~1 -- pom.xml 2>/dev/null || echo "No previous pom.xml"
+            PREVIOUS_VERSION=$(grep -oP '<version>\K[^<]+' pom.xml 2>/dev/null | head -1 || echo "0.0.0")
+            git checkout HEAD -- pom.xml
+            echo "Previous pom.xml version: $PREVIOUS_VERSION"
+          
+            if [[ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" && "$CURRENT_VERSION" != *"SNAPSHOT"* ]]; then
+              # Version changed and is not a SNAPSHOT - this is a release!
+              NEW_VERSION="v$CURRENT_VERSION"
+              ENVIRONMENT="dev"
+              IS_RELEASE="true"
+              SHOULD_DEPLOY="true"
+          
+              echo "🚀 Release detected! Version: $NEW_VERSION"
+          
+              # Create and push git tag
+              if ! git tag -l | grep -q "^$NEW_VERSION$"; then
+                git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+                git push origin "$NEW_VERSION"
+                echo "✅ Created and pushed tag: $NEW_VERSION"
+              else
+                echo "⚠️ Tag $NEW_VERSION already exists"
+              fi
+          
+              echo "git_tag=$NEW_VERSION" >> $GITHUB_OUTPUT
+            else
+              # Regular main branch commit - patch bump for development
+              LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+              LATEST_VERSION=${LATEST_TAG#v}
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
+              NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))-main-$(git rev-parse --short HEAD)"
+              ENVIRONMENT="prod"
+              IS_RELEASE="false"
+              SHOULD_DEPLOY="true"
+              echo "git_tag=" >> $GITHUB_OUTPUT
+            fi
+          
           elif [[ "${{ github.ref }}" =~ ^refs/heads/feature/ ]]; then
             # Feature branch - preview version
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            LATEST_VERSION=${LATEST_TAG#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
             BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/heads\/feature\///')
             NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))-feature-${BRANCH_NAME}-$(git rev-parse --short HEAD)"
             ENVIRONMENT="dev"
+            IS_RELEASE="false"
             SHOULD_DEPLOY="true"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual trigger
-            NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))-manual"
-            ENVIRONMENT="${{ github.event.inputs.deployment_target }}"
-            SHOULD_DEPLOY="true"
+            echo "git_tag=" >> $GITHUB_OUTPUT
           fi
           
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
           echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
           
-          echo "🏷️ New Version: $NEW_VERSION"
+          echo "🏷️ Version: $NEW_VERSION"
           echo "🌍 Environment: $ENVIRONMENT"
+          echo "📦 Is Release: $IS_RELEASE"
+
+  # Manual Deployment from Git Tags
+  Manual-Version-Analysis:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.version.outputs.environment }}
+      should_deploy: ${{ steps.version.outputs.should_deploy }}
+      is_release: ${{ steps.version.outputs.is_release }}
+    steps:
+      - name: 🔍 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_tag }}
+
+      - name: 📊 Validate Tag & Set Version
+        id: version
+        run: |
+          GIT_TAG="${{ github.event.inputs.git_tag }}"
+          TARGET_ENV="${{ github.event.inputs.target_environment }}"
+          
+          # Validate tag exists
+          if ! git tag -l | grep -q "^$GIT_TAG$"; then
+            echo "❌ Tag $GIT_TAG does not exist!"
+            exit 1
+          fi
+          
+          echo "version=$GIT_TAG" >> $GITHUB_OUTPUT
+          echo "environment=$TARGET_ENV" >> $GITHUB_OUTPUT
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
+          echo "is_release=true" >> $GITHUB_OUTPUT
+          
+          echo "🏷️ Deploying Tag: $GIT_TAG"
+          echo "🌍 Target Environment: $TARGET_ENV"
 
   # Build and Push Container
   Build-and-Push:
     runs-on: ubuntu-latest
-    needs: Version-Analysis
-    if: needs.Version-Analysis.outputs.should_deploy == 'true'
+    needs: [Version-Analysis, Manual-Version-Analysis]
+    if: always() && (needs.Version-Analysis.outputs.should_deploy == 'true' || needs.Manual-Version-Analysis.outputs.should_deploy == 'true')
     outputs:
       image_tag: ${{ steps.meta.outputs.tags }}
     steps:
       - name: 🔍 Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.Manual-Version-Analysis.outputs.version || github.sha }}
 
       - name: ☕ Set up JDK 21
         uses: actions/setup-java@v4
@@ -147,9 +226,12 @@ jobs:
 
       - name: 🔨 Build Application
         run: |
+          VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
+          ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
+          
           mvn clean package -DskipTests \
-            -Dapp.version=${{ needs.Version-Analysis.outputs.version }} \
-            -Dapp.environment=${{ needs.Version-Analysis.outputs.environment }}
+            -Dapp.version=$VERSION \
+            -Dapp.environment=$ENVIRONMENT
 
       - name: 🔑 Login to Container Registry
         uses: docker/login-action@v3
@@ -164,7 +246,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ needs.Version-Analysis.outputs.version }}
+            type=raw,value=${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: 🐳 Build and Push Docker Image
@@ -175,18 +257,20 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=${{ needs.Version-Analysis.outputs.version }}
-            APP_ENVIRONMENT=${{ needs.Version-Analysis.outputs.environment }}
+            APP_VERSION=${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}
+            APP_ENVIRONMENT=${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
 
   # Deploy to OpenShift
   Deploy-OpenShift:
     runs-on: self-hosted
-    needs: [Version-Analysis, Build-and-Push]
-    if: needs.Version-Analysis.outputs.should_deploy == 'true'
-    environment: ${{ needs.Version-Analysis.outputs.environment }}
+    needs: [Version-Analysis, Manual-Version-Analysis, Build-and-Push]
+    if: always() && needs.Build-and-Push.result == 'success'
+    environment: ${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
     steps:
       - name: 🔍 Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.Manual-Version-Analysis.outputs.version || github.sha }}
 
       - name: 🔧 Setup OpenShift CLI
         run: |
@@ -203,9 +287,20 @@ jobs:
 
       - name: 🚀 Deploy Application
         run: |
+          VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
+          ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
+          IS_RELEASE="${{ needs.Manual-Version-Analysis.outputs.is_release || needs.Version-Analysis.outputs.is_release }}"
+          
           # Create or switch to project
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }} || oc new-project ${{ secrets.OPENSHIFT_PROJECT }}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}"
           oc project $PROJECT_NAME || oc new-project $PROJECT_NAME
+          
+          echo "🚀 Deploying $VERSION to $ENVIRONMENT environment"
+          if [[ "$IS_RELEASE" == "true" ]]; then
+            echo "📦 This is a RELEASE deployment"
+          else
+            echo "🔨 This is a DEVELOPMENT deployment"
+          fi
           
           # Deploy application
           envsubst < openshift/deployment.yml | oc apply -f -
@@ -216,12 +311,14 @@ jobs:
           oc rollout status deployment/intflow-service --timeout=300s
         env:
           IMAGE_TAG: ${{ needs.Build-and-Push.outputs.image_tag }}
-          APP_VERSION: ${{ needs.Version-Analysis.outputs.version }}
-          APP_ENVIRONMENT: ${{ needs.Version-Analysis.outputs.environment }}
+          APP_VERSION: ${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}
+          APP_ENVIRONMENT: ${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
 
       - name: 🧪 Health Check
         run: |
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }} || oc new-project ${{ secrets.OPENSHIFT_PROJECT }}"
+          VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
+          ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-$ENVIRONMENT"
           oc project $PROJECT_NAME
           
           echo "🔍 Checking application health..."
@@ -244,11 +341,24 @@ jobs:
 
       - name: 🎉 Deployment Summary
         run: |
-          echo "🎉 Deployment Complete!"
-          echo "✅ Version: ${{ needs.Version-Analysis.outputs.version }}"
-          echo "🌍 Environment: ${{ needs.Version-Analysis.outputs.environment }}"
-          echo "📦 Image: ${{ needs.Build-and-Push.outputs.image_tag }}"
+          VERSION="${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}"
+          ENVIRONMENT="${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}"
+          IS_RELEASE="${{ needs.Manual-Version-Analysis.outputs.is_release || needs.Version-Analysis.outputs.is_release }}"
+          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-$ENVIRONMENT"
           
-          PROJECT_NAME="${{ secrets.OPENSHIFT_PROJECT }}-${{ needs.Version-Analysis.outputs.environment }}"
+          echo "🎉 Deployment Complete!"
+          echo "✅ Version: $VERSION"
+          echo "🌍 Environment: $ENVIRONMENT"
+          echo "📦 Image: ${{ needs.Build-and-Push.outputs.image_tag }}"
+          echo "🏷️ Release: $IS_RELEASE"
+          
           ROUTE_URL=$(oc get route intflow-service -o jsonpath='{.spec.host}' -n $PROJECT_NAME 2>/dev/null || echo "Internal only")
           echo "🔗 URL: https://$ROUTE_URL"
+          
+          if [[ "$IS_RELEASE" == "true" && "$ENVIRONMENT" == "dev" ]]; then
+            echo ""
+            echo "🚀 Next Steps for Release Promotion:"
+            echo "   1. Validate deployment in dev environment"
+            echo "   2. Manual promote to test: Run workflow with tag=$VERSION, env=test"
+            echo "   3. Manual promote to prod: Run workflow with tag=$VERSION, env=prod"
+          fi
