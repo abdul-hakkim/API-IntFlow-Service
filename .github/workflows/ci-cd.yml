@@ -315,6 +315,8 @@ jobs:
             echo "🔨 This is a DEVELOPMENT deployment"
           fi
           
+          envsubst < openshift/deployment.yml > debug-deployment.yml
+          
           # Deploy application
           envsubst < openshift/deployment.yml | oc apply -f -
           envsubst < openshift/service.yml | oc apply -f -
