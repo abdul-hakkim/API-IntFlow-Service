@@ -5,8 +5,8 @@ function fn() {
 
     karate.log('karate.env system property was:', env);
 
-    if (env === 'test') {
-        config.baseUrl = 'http://intflow-service-latest-dev.apps.crc.testing.com:8080';
+    if (env === 'dev') {
+        config.baseUrl = 'http://intflow-service-dev.apps.crc.testing.com:8080';
     } else if (env === 'local') {
         config.baseUrl = 'http://localhost:8080';
     } else {

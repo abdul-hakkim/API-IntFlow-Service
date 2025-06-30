@@ -1,5 +1,5 @@
 ```markdown
-# InfFlow- Spring Boot Application
+# IntFlow- Spring Boot Application
 
 A simple Spring Boot REST API that returns version information dynamically based on release tags with environment names and commit information.
 
@@ -10,7 +10,7 @@ A simple Spring Boot REST API that returns version information dynamically based
 - **Automated Testing**: Unit tests with JUnit 5 and integration tests with Karate
 - **CI/CD Pipeline**: GitHub Actions with automated deployment to OpenShift
 - **Security Scanning**: CodeQL and Trivy integration
-- **AI-Assisted Reviews**: Automated PR reviews with OpenAI
+- **AI-Assisted Reviews**: Automated PR reviews with Bito AI
 
 ## Quick Start
 

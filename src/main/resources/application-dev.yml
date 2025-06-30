@@ -3,5 +3,5 @@ app:
 
 logging:
   level:
-    com.intflow.apiintflowservice: DEBUG
+#    com.intflow.apiintflowservice: DEBUG
     org.springframework: INFO
