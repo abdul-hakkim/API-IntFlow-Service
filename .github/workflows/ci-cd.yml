@@ -315,7 +315,7 @@ jobs:
             echo "🔨 This is a DEVELOPMENT deployment"
           fi
           
-          envsubst < openshift/deployment.yml > debug-deployment.yml
+          echo "IMAGE_TAG: '${IMAGE_TAG}'"
           
           # Deploy application
           envsubst < openshift/deployment.yml | oc apply -f -
