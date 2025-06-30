@@ -104,7 +104,7 @@ jobs:
           
             # Get previous commit's version
             git checkout HEAD~1 -- pom.xml 2>/dev/null || echo "No previous pom.xml"
-            PREVIOUS_VERSION=$(grep -oP '<version>\K[^<]+' pom.xml 2>/dev/null | head -1 || echo "0.0.0")
+            PREVIOUS_VERSION=$(xmllint --xpath "/*[local-name()='project']/*[local-name()='version']/text()" pom.xml 2>/dev/null || echo "0.0.0")
             git checkout HEAD -- pom.xml
             echo "Previous pom.xml version: $PREVIOUS_VERSION"
           
