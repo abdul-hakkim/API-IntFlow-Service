@@ -133,7 +133,7 @@ jobs:
               LATEST_VERSION=${LATEST_TAG#v}
               IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
               NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))-main-$(git rev-parse --short HEAD)"
-              ENVIRONMENT="prod"
+              ENVIRONMENT="dev"
               IS_RELEASE="false"
               SHOULD_DEPLOY="true"
               echo "git_tag=" >> $GITHUB_OUTPUT
