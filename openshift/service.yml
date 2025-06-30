@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: intflow-service
   labels:
-    app:  intflow-service
+    app: intflow-service
 spec:
   ports:
     - name: http
