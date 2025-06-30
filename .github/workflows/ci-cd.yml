@@ -315,7 +315,9 @@ jobs:
             echo "🔨 This is a DEVELOPMENT deployment"
           fi
           
-          echo "IMAGE_TAG: '${IMAGE_TAG}'"
+          # Extract only the first (versioned) image tag and export it
+          export IMAGE_TAG=$(echo "$IMAGE_TAG_RAW" | head -n1)
+          echo "IMAGE_TAG: '$IMAGE_TAG'"
           
           # Deploy application
           envsubst < openshift/deployment.yml | oc apply -f -
@@ -325,7 +327,7 @@ jobs:
           # Wait for rollout
           oc rollout status deployment/intflow-service --timeout=300s
         env:
-          IMAGE_TAG: ${{ needs.Build-and-Push.outputs.image_tag }}
+          IMAGE_TAG_RAW: ${{ needs.Build-and-Push.outputs.image_tag }}
           APP_VERSION: ${{ needs.Manual-Version-Analysis.outputs.version || needs.Version-Analysis.outputs.version }}
           APP_ENVIRONMENT: ${{ needs.Manual-Version-Analysis.outputs.environment || needs.Version-Analysis.outputs.environment }}
 
